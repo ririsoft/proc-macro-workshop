@@ -76,7 +76,10 @@ fn struct_named_struct_builder_impl_setters(
 ) -> proc_macro2::TokenStream {
     let setters_def = fields.named.iter().map(|f| {
         let name = &f.ident;
-        let ty = &f.ty;
+        let ty = match extract_inner_type(&f.ty, "Option") {
+            Some(inner_ty) => inner_ty,
+            None => &f.ty,
+        };
         quote! {
             pub fn #name(&mut self, #name: #ty) -> &mut Self {
                 self.#name = Some(#name);
