@@ -10,12 +10,12 @@ use derive_builder::Builder;
 
 #[derive(Builder)]
 pub struct Command {
-    executable: String,
-    args: Vec<String>,
-    env: Vec<String>,
-    current_dir: String,
+    _executable: String,
+    _args: Vec<String>,
+    _env: Vec<String>,
+    _current_dir: String,
 }
 
 fn main() {
-    let cmd = Command::builder().build().unwrap();
+    let _cmd = Command::builder().build().unwrap();
 }
