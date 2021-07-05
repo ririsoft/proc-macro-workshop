@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Ident};
+use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident};
 
-#[proc_macro_derive(Builder)]
+#[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -74,23 +74,28 @@ fn struct_named_struct_builder_impl_setters(
     builder_ident: &Ident,
     fields: &FieldsNamed,
 ) -> proc_macro2::TokenStream {
-    let setters_def = fields.named.iter().map(|f| {
-        let name = &f.ident;
-        let ty = match extract_inner_type(&f.ty, "Option") {
-            Some(inner_ty) => inner_ty,
-            None => &f.ty,
-        };
-        quote! {
-            pub fn #name(&mut self, #name: #ty) -> &mut Self {
-                self.#name = Some(#name);
-                self
-            }
-        }
-    });
+    let setters_def = fields.named.iter().map(field_setter);
 
     quote! {
         impl #builder_ident {
             #(#setters_def)*
+        }
+    }
+}
+
+fn field_setter(field: &Field) -> proc_macro2::TokenStream {
+    let name = &field.ident;
+    let ty = match extract_inner_type(&field.ty, "Option") {
+        Some(inner_ty) => inner_ty,
+        None => &field.ty,
+    };
+
+    field.attrs.iter().filter_map(|attr| if let Some() )
+
+    quote! {
+        pub fn #name(&mut self, #name: #ty) -> &mut Self {
+            self.#name = Some(#name);
+            self
         }
     }
 }
