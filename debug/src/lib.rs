@@ -1,7 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    parse_macro_input, Attribute, Data, DataStruct, Error, Fields, Ident, Lit, Meta, MetaNameValue,
+    parse_macro_input, Attribute, Data, DataStruct, Error, Fields, GenericParam, Generics, Ident,
+    Lit, Meta, MetaNameValue,
 };
 
 #[proc_macro_derive(CustomDebug, attributes(debug))]
@@ -9,7 +10,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
 
     let expanded = match input.data {
-        Data::Struct(data) => impl_debug(&input.ident, &data),
+        Data::Struct(data) => impl_debug(&input.ident, &input.generics, &data),
         _ => unimplemented!(),
     };
 
@@ -17,7 +18,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     expanded.into()
 }
 
-fn impl_debug(ident: &Ident, data: &DataStruct) -> TokenStream {
+fn impl_debug(ident: &Ident, generics: &Generics, data: &DataStruct) -> TokenStream {
     let fields_dbg = match data.fields {
         Fields::Named(ref fields) => fields.named.iter().map(|f| {
             let ident = &f.ident;
@@ -32,14 +33,33 @@ fn impl_debug(ident: &Ident, data: &DataStruct) -> TokenStream {
         _ => unimplemented!(),
     };
 
+    let impl_debug_header = if generics.params.is_empty() {
+        quote!(impl ::std::fmt::Debug for #ident)
+    } else {
+        impl_debug_header_generic(ident, generics)
+    };
+
     quote!(
-        impl ::std::fmt::Debug for #ident {
+        #impl_debug_header {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::result::Result<(), ::std::fmt::Error> {
                 f.debug_struct(stringify!(#ident))
                     #(#fields_dbg)*
                     .finish()
             }
         }
+    )
+}
+
+fn impl_debug_header_generic(ident: &Ident, generics: &Generics) -> TokenStream {
+    let (impl_generics, ty_generics, _) = generics.split_for_impl();
+
+    let where_clauses = generics.params.iter().filter_map(|p| match p {
+        GenericParam::Type(ty) => Some(quote!(#ty: ::std::fmt::Debug)),
+        _ => None,
+    });
+
+    quote!(
+        impl #impl_generics ::std::fmt::Debug for #ident #ty_generics where #(#where_clauses),*
     )
 }
 
