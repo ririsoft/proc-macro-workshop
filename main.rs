@@ -10,12 +10,22 @@ use derive_builder::Builder;
 
 #[derive(Builder)]
 pub struct Command {
-    _executable: String,
-    _args: Vec<String>,
+    executable: String,
+    #[builder(each = "arg")]
+    args: Vec<String>,
+    #[builder(each = "env")]
     _env: Vec<String>,
-    _current_dir: String,
+    _current_dir: Option<String>,
 }
 
 fn main() {
-    let _cmd = Command::builder().build().unwrap();
+    let command = Command::builder()
+        .executable("cargo".to_owned())
+        .arg("build".to_owned())
+        .arg("--release".to_owned())
+        .build()
+        .unwrap();
+
+    assert_eq!(command.executable, "cargo");
+    assert_eq!(command.args, vec!["build", "--release"]);
 }

@@ -84,19 +84,42 @@ fn struct_named_struct_builder_impl_setters(
 }
 
 fn field_setter(field: &Field) -> proc_macro2::TokenStream {
-    let name = &field.ident;
+    let name = field.ident.as_ref().unwrap();
     let ty = match extract_inner_type(&field.ty, "Option") {
         Some(inner_ty) => inner_ty,
         None => &field.ty,
     };
 
-    field.attrs.iter().filter_map(|attr| if let Some() )
-
-    quote! {
+    let set_all = quote! {
         pub fn #name(&mut self, #name: #ty) -> &mut Self {
             self.#name = Some(#name);
             self
         }
+    };
+
+    match get_one_time_ident(&field.attrs) {
+        Ok(Some(once_ident)) => {
+            let inner_ty = extract_inner_type(ty, "Vec").expect("invalid Vec<> inner type");
+            let set_once = quote!(
+                pub fn #once_ident(&mut self, #once_ident: #inner_ty) -> &mut Self {
+                    self.#name.get_or_insert_with(Vec::new).push(#once_ident);
+                    self
+                }
+            );
+
+            if once_ident == *name {
+                quote!(
+                    #set_once
+                )
+            } else {
+                quote!(
+                    #set_once
+                    #set_all
+                )
+            }
+        }
+        Err(err) => err,
+        Ok(None) => quote!(#set_all),
     }
 }
 
@@ -133,8 +156,10 @@ fn struct_name_impl_struct(
 ) -> proc_macro2::TokenStream {
     let fields_val = fields.named.iter().map(|f| {
         let name = &f.ident;
-        quote! {
-            #name: None
+        if extract_inner_type(&f.ty, "Vec").is_some() {
+            quote!(#name: Some(vec![]))
+        } else {
+            quote!(#name: None)
         }
     });
 
@@ -169,4 +194,38 @@ fn extract_inner_type<'t>(ty: &'t syn::Type, expected_ident: &str) -> Option<&'t
         }
     }
     None
+}
+
+fn get_one_time_ident(attrs: &[syn::Attribute]) -> Result<Option<Ident>, proc_macro2::TokenStream> {
+    for attr in attrs {
+        match attr.parse_meta() {
+            Ok(meta) => match meta {
+                syn::Meta::List(meta_list) => {
+                    if meta_list.path.is_ident("builder") {
+                        for nested_meta in meta_list.nested {
+                            match nested_meta {
+                                syn::NestedMeta::Meta(syn::Meta::NameValue(
+                                    syn::MetaNameValue { path, lit, .. },
+                                )) => {
+                                    if path.is_ident("each") {
+                                        match lit {
+                                            syn::Lit::Str(lit) => {
+                                                return Ok(Some(format_ident!("{}", lit.value())))
+                                            }
+                                            _ => unimplemented!(),
+                                        }
+                                    }
+                                }
+                                _ => unimplemented!(),
+                            }
+                        }
+                    }
+                }
+                syn::Meta::Path(_) => unimplemented!(),
+                syn::Meta::NameValue(_) => unimplemented!(),
+            },
+            Err(_) => unimplemented!(),
+        }
+    }
+    Ok(None)
 }
