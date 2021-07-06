@@ -1,8 +1,10 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DataStruct, Fields, Ident};
+use syn::{
+    parse_macro_input, Attribute, Data, DataStruct, Error, Fields, Ident, Lit, Meta, MetaNameValue,
+};
 
-#[proc_macro_derive(CustomDebug)]
+#[proc_macro_derive(CustomDebug, attributes(debug))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);
 
@@ -19,7 +21,13 @@ fn impl_debug(ident: &Ident, data: &DataStruct) -> TokenStream {
     let fields_dbg = match data.fields {
         Fields::Named(ref fields) => fields.named.iter().map(|f| {
             let ident = &f.ident;
-            quote!(.field(stringify!(#ident), &self.#ident))
+            match get_fmt_attr(&f.attrs) {
+                Ok(Some(fmt_attr)) => {
+                    quote!(.field(stringify!(#ident), &format_args!(#fmt_attr, &self.#ident)))
+                }
+                Ok(None) => quote!(.field(stringify!(#ident), &self.#ident)),
+                Err(err) => err,
+            }
         }),
         _ => unimplemented!(),
     };
@@ -33,4 +41,29 @@ fn impl_debug(ident: &Ident, data: &DataStruct) -> TokenStream {
             }
         }
     )
+}
+
+fn get_fmt_attr(attrs: &[Attribute]) -> Result<Option<String>, TokenStream> {
+    for attr in attrs {
+        match attr.parse_meta() {
+            Ok(ref meta) => match meta {
+                Meta::NameValue(MetaNameValue { path, lit, .. }) => {
+                    if path.is_ident("debug") {
+                        match lit {
+                            Lit::Str(lit) => return Ok(Some(lit.value())),
+                            _ => unimplemented!(),
+                        }
+                    } else {
+                        return std::result::Result::Err(
+                            Error::new_spanned(meta, "expected `debug \"...\"`").to_compile_error(),
+                        );
+                    }
+                }
+                Meta::List(_) => unimplemented!(),
+                Meta::Path(_) => unimplemented!(),
+            },
+            Err(_) => unimplemented!(),
+        }
+    }
+    Ok(None)
 }

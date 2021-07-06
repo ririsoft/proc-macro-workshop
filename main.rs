@@ -11,6 +11,7 @@ use derive_debug::CustomDebug;
 #[derive(CustomDebug)]
 pub struct Field {
     name: &'static str,
+    #[debug = "0b{:08b}"]
     bitmask: u8,
 }
 
@@ -21,6 +22,5 @@ fn main() {
     };
 
     let debug = format!("{:?}", f);
-    println!("++ DEBUG: {}", debug);
     assert!(debug.starts_with(r#"Field { name: "F","#));
 }
