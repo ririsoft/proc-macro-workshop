@@ -199,10 +199,10 @@ fn extract_inner_type<'t>(ty: &'t syn::Type, expected_ident: &str) -> Option<&'t
 fn get_one_time_ident(attrs: &[syn::Attribute]) -> Result<Option<Ident>, proc_macro2::TokenStream> {
     for attr in attrs {
         match attr.parse_meta() {
-            Ok(meta) => match meta {
+            Ok(ref meta) => match meta {
                 syn::Meta::List(meta_list) => {
                     if meta_list.path.is_ident("builder") {
-                        for nested_meta in meta_list.nested {
+                        for nested_meta in &meta_list.nested {
                             match nested_meta {
                                 syn::NestedMeta::Meta(syn::Meta::NameValue(
                                     syn::MetaNameValue { path, lit, .. },
@@ -214,6 +214,14 @@ fn get_one_time_ident(attrs: &[syn::Attribute]) -> Result<Option<Ident>, proc_ma
                                             }
                                             _ => unimplemented!(),
                                         }
+                                    } else {
+                                        return std::result::Result::Err(
+                                            syn::Error::new_spanned(
+                                                meta,
+                                                "expected `builder(each = \"...\")`",
+                                            )
+                                            .to_compile_error(),
+                                        );
                                     }
                                 }
                                 _ => unimplemented!(),
