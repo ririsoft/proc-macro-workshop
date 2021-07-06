@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    parse_macro_input, Attribute, Data, DataStruct, Error, Fields, GenericParam, Generics, Ident,
-    Lit, Meta, MetaNameValue,
+    parse_macro_input, Attribute, Data, DataStruct, Error, Fields, GenericArgument, Generics,
+    Ident, Lit, Meta, MetaNameValue, PathArguments, Type, TypePath,
 };
 
 #[proc_macro_derive(CustomDebug, attributes(debug))]
@@ -36,7 +36,7 @@ fn impl_debug(ident: &Ident, generics: &Generics, data: &DataStruct) -> TokenStr
     let impl_debug_header = if generics.params.is_empty() {
         quote!(impl ::std::fmt::Debug for #ident)
     } else {
-        impl_debug_header_generic(ident, generics)
+        impl_debug_header_generic(ident, generics, data)
     };
 
     quote!(
@@ -50,12 +50,41 @@ fn impl_debug(ident: &Ident, generics: &Generics, data: &DataStruct) -> TokenStr
     )
 }
 
-fn impl_debug_header_generic(ident: &Ident, generics: &Generics) -> TokenStream {
+fn impl_debug_header_generic(ident: &Ident, generics: &Generics, data: &DataStruct) -> TokenStream {
+    let phantoms: std::collections::HashSet<Ident> = data
+        .fields
+        .iter()
+        .filter_map(|f| match &f.ty {
+            Type::Path(ty_path) => match ty_path.path.segments.last() {
+                Some(seg) if seg.ident == "PhantomData" => match &seg.arguments {
+                    PathArguments::None => None,
+                    PathArguments::AngleBracketed(args) => match args.args.first() {
+                        Some(GenericArgument::Type(Type::Path(TypePath { path, .. }))) => {
+                            match path.segments.last() {
+                                Some(seg) => Some(seg.ident.clone()),
+                                None => unreachable!(),
+                            }
+                        }
+                        None => unreachable!(),
+                        _ => unimplemented!(),
+                    },
+                    _ => unimplemented!(),
+                },
+                Some(_) => None,
+                _ => unimplemented!(),
+            },
+            _ => unimplemented!(),
+        })
+        .collect();
+
     let (impl_generics, ty_generics, _) = generics.split_for_impl();
 
-    let where_clauses = generics.params.iter().filter_map(|p| match p {
-        GenericParam::Type(ty) => Some(quote!(#ty: ::std::fmt::Debug)),
-        _ => None,
+    let where_clauses = generics.type_params().filter_map(|ty| {
+        if phantoms.iter().any(|ident| ident == &ty.ident) {
+            None
+        } else {
+            Some(quote!(#ty: ::std::fmt::Debug))
+        }
     });
 
     quote!(
