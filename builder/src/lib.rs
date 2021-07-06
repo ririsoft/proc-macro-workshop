@@ -92,7 +92,7 @@ fn field_setter(field: &Field) -> proc_macro2::TokenStream {
 
     let set_all = quote! {
         pub fn #name(&mut self, #name: #ty) -> &mut Self {
-            self.#name = Some(#name);
+            self.#name = ::std::option::Option::Some(#name);
             self
         }
     };
@@ -141,7 +141,7 @@ fn struct_named_struct_builder_impl_build(
     quote! {
         impl #builder_ident {
             pub fn build(&mut self) -> ::std::result::Result<#ident, ::std::boxed::Box<dyn ::std::error::Error>> {
-                Ok(#ident{
+                ::std::result::Result::Ok(#ident{
                     #(#setters_def),*
                 })
             }
@@ -157,9 +157,9 @@ fn struct_name_impl_struct(
     let fields_val = fields.named.iter().map(|f| {
         let name = &f.ident;
         if extract_inner_type(&f.ty, "Vec").is_some() {
-            quote!(#name: Some(vec![]))
+            quote!(#name: ::std::option::Option::Some(vec![]))
         } else {
-            quote!(#name: None)
+            quote!(#name: ::std::option::Option::None)
         }
     });
 
